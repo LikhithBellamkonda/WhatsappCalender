@@ -1,0 +1,26 @@
+node_modules/
+.env
+token.json
+credentials.json
+build/
+.gradle/
+local.properties
+.idea/
+*.apk
+*.aab
+.gemini/
+venv/
+env/
+__pycache__/
+Lib/
+Include/
+Scripts/
+
+# Android Studio IDE installation (massive - do not commit)
+android studio/
+Android Studio/
+android-studio/
+backend/android studio/
+backend/Android Studio/
+backend/sdk/
+sdk/
