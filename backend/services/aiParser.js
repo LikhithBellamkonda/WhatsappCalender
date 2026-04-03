@@ -1,47 +1,73 @@
-const OpenAI = require('openai');
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434/api/chat';
+const MODEL = process.env.OLLAMA_MODEL || 'llama2';
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+/**
+ * Calls Ollama API to get structured meeting data.
+ * @param {string} message
+ * @returns {Promise<object>}
+ */
+async function callOllama(message) {
+  const today = new Date().toISOString().split('T')[0];
 
-// ── Tool schema for structured extraction ────────────────────────────────────
-const TOOL_SCHEMA = {
-  type: 'function',
-  function: {
-    name: 'extract_meeting',
-    description: 'Extract meeting/scheduling details from a WhatsApp message. ' +
-                 'Return isSchedulable=false if the message is not about a meeting, call, or event.',
-    parameters: {
-      type: 'object',
-      properties: {
-        isSchedulable: {
-          type: 'boolean',
-          description: 'True only if this message contains a clear scheduling intent (meeting, call, sync, interview, etc.)',
-        },
-        title: {
-          type: 'string',
-          description: 'Short event title, e.g. "Meeting with Rahul". Leave empty if not schedulable.',
-        },
-        date: {
-          type: 'string',
-          description: 'ISO date string YYYY-MM-DD. Resolve relative terms like "tomorrow" against today\'s date.',
-        },
-        time: {
-          type: 'string',
-          description: 'Start time in 24-hour HH:mm format, e.g. "15:00". Assume 09:00 if not stated.',
-        },
-        durationMinutes: {
-          type: 'integer',
-          description: 'Duration in minutes. Default to 60 if not mentioned.',
-        },
-        description: {
-          type: 'string',
-          description: 'Additional context from the message to add to the event description.',
-        },
-      },
-      required: ['isSchedulable'],
-    },
-  },
-};
+  const systemPrompt = `You are a scheduling assistant. Today's date is ${today}.
+Analyze the WhatsApp message and extract scheduling details if present.
+Respond ONLY with a valid JSON object, no other text.
+Use this exact structure:
+{
+  "isSchedulable": boolean,
+  "title": "string or empty",
+  "date": "YYYY-MM-DD or empty",
+  "time": "HH:mm or empty (default 09:00)",
+  "durationMinutes": number (default 60),
+  "description": "string or empty"
+}
+
+Rules:
+- isSchedulable=true only if message mentions meeting, call, sync, interview, or scheduling intent
+- For dates, resolve relative terms like "tomorrow", "next Monday" against today (${today})
+- For time, assume 09:00 if not specified
+- Return valid JSON only.`;
+
+  try {
+    const response = await fetch(OLLAMA_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message },
+        ],
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.message?.content;
+
+    if (!content) {
+      console.warn('[AI Parser] No content from Ollama');
+      return { isSchedulable: false };
+    }
+
+    // Extract JSON from response (handle cases where model adds extra text)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('[AI Parser] No JSON found in response:', content);
+      return { isSchedulable: false };
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    return parsed;
+  } catch (err) {
+    console.error('[AI Parser] Ollama call failed:', err.message);
+    throw err;
+  }
+}
 
 /**
  * Parses a WhatsApp message and returns structured meeting data.
@@ -49,34 +75,8 @@ const TOOL_SCHEMA = {
  * @returns {Promise<object>}
  */
 async function parse(message) {
-  // Provide today's date so the model can resolve relative dates
-  const today = new Date().toISOString().split('T')[0];
-
-  const response = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      {
-        role: 'system',
-        content:
-          `You are a scheduling assistant. Today's date is ${today}. ` +
-          'Analyze the user\'s WhatsApp message and extract scheduling details if present. ' +
-          'Always call the extract_meeting function.',
-      },
-      { role: 'user', content: message },
-    ],
-    tools: [TOOL_SCHEMA],
-    tool_choice: { type: 'function', function: { name: 'extract_meeting' } },
-    temperature: 0,
-  });
-
-  const toolCall = response.choices[0]?.message?.tool_calls?.[0];
-  if (!toolCall) {
-    console.warn('[AI Parser] No tool call returned — treating as non-schedulable.');
-    return { isSchedulable: false };
-  }
-
-  const args = JSON.parse(toolCall.function.arguments);
-  return args;
+  const parsed = await callOllama(message);
+  return parsed;
 }
 
 module.exports = { parse };

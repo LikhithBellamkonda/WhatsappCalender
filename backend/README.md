@@ -1,18 +1,55 @@
 # WhatsApp-to-Calendar Backend
 
-Node.js + Express backend that uses **OpenAI** to parse WhatsApp messages and creates **Google Calendar** events with Google Meet links.
+Node.js + Express backend that uses **Ollama** (local LLM) to parse WhatsApp messages and creates **Google Calendar** events with Google Meet links.
 
 ---
 
 ## Prerequisites
 
 - Node.js 18+
-- An [OpenAI API key](https://platform.openai.com/api-keys)
+- [Ollama](https://ollama.ai) installed and running locally (`ollama serve`)
 - A Google Cloud project with **Google Calendar API** enabled
 
 ---
 
-## 1. Google Cloud Setup
+## 1. Ollama Setup
+
+### Install Ollama
+
+Download from [ollama.ai](https://ollama.ai) for Windows, Mac, or Linux.
+
+### Run Ollama
+
+```powershell
+# Start Ollama server (it will run on http://localhost:11434)
+ollama serve
+```
+
+### Download a Model
+
+In another terminal:
+
+```powershell
+# Download Mistral (recommended, ~7.3GB)
+ollama pull mistral
+
+# OR other options:
+# ollama pull neural-chat  (smaller, faster)
+# ollama pull llama2        (larger, more powerful)
+# ollama pull openchat      (balanced)
+```
+
+Verify installation:
+
+```powershell
+ollama list
+```
+
+You should see your model listed.
+
+---
+
+## 2. Google Cloud Setup
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
 2. Create a new project (or use an existing one)
@@ -23,7 +60,7 @@ Node.js + Express backend that uses **OpenAI** to parse WhatsApp messages and cr
 
 ---
 
-## 2. Installation
+## 3. Installation
 
 ```powershell
 # In d:\automate\backend\
@@ -32,17 +69,17 @@ npm install
 
 ---
 
-## 3. Environment Setup
+## 4. Environment Setup
 
 ```powershell
 copy .env.example .env
 ```
 
-Edit `.env` and fill in your `OPENAI_API_KEY`. Leave other values as defaults.
+Edit `.env` and set your `OLLAMA_MODEL` (default: `mistral`). Make sure `OLLAMA_API_URL` points to your running Ollama instance.
 
 ---
 
-## 4. Authorize Google Calendar (One-time)
+## 5. Authorize Google Calendar (One-time)
 
 ```powershell
 node server.js
@@ -53,7 +90,7 @@ You only need to do this once.
 
 ---
 
-## 5. Run the Server
+## 6. Run the Server
 
 ```powershell
 npm start
@@ -63,18 +100,18 @@ npm run dev
 
 ---
 
-## 6. Test the API
+## 7. Test the API
 
 ```powershell
 # Meeting message (should create event)
 curl -X POST http://localhost:3000/process `
   -H "Content-Type: application/json" `
-  -d "{\"sender\":\"Rahul\",\"message\":\"Meeting tomorrow at 3pm with Rahul to discuss project\"}"
+  -d "{\"sender\":\"Rahul\",\"message\":\"Meeting tomorrow at 3pm with Rahul to discuss project\",\"userId\":\"user123\"}"
 
 # Non-meeting message (should return isSchedulable: false)
 curl -X POST http://localhost:3000/process `
   -H "Content-Type: application/json" `
-  -d "{\"sender\":\"Mom\",\"message\":\"Can you pick up groceries?\"}"
+  -d "{\"sender\":\"Mom\",\"message\":\"Can you pick up groceries?\",\"userId\":\"user123\"}"
 ```
 
 ---
@@ -87,7 +124,8 @@ curl -X POST http://localhost:3000/process `
 ```json
 {
   "sender": "Rahul",
-  "message": "Meeting tomorrow at 3pm"
+  "message": "Meeting tomorrow at 3pm",
+  "userId": "user123"
 }
 ```
 
