@@ -1,44 +1,52 @@
 # WhatsApp-to-Calendar Backend
 
-Node.js + Express backend that uses **OpenClaw** (local LLM inference) to parse WhatsApp messages and creates **Google Calendar** events with Google Meet links.
+Node.js + Express backend that uses **OpenClaw Gateway** (personal AI assistant) to parse WhatsApp messages and creates **Google Calendar** events with Google Meet links.
 
 ---
 
 ## Prerequisites
 
 - Node.js 18+
-- [OpenClaw](https://github.com/clawai/openclaw) installed and running locally (`openclaw serve`)
+- [OpenClaw](https://github.com/openclaw/openclaw) installed globally (`npm install -g openclaw@latest`)
+- OpenClaw Gateway running locally (`openclaw gateway --port 18789`)
 - A Google Cloud project with **Google Calendar API** enabled
 
 ---
 
-## 1. OpenClaw Setup
+## 1. OpenClaw Gateway Setup
 
 ### Install OpenClaw
 
-Clone and install from [GitHub](https://github.com/clawai/openclaw):
-
 ```powershell
-git clone https://github.com/clawai/openclaw.git
-cd openclaw
-pip install -r requirements.txt
+# Install OpenClaw globally (Node.js 22+ or 24 recommended)
+npm install -g openclaw@latest
 ```
 
-### Run OpenClaw
+### Configure OpenClaw
+
+Run the onboarding setup (one-time):
 
 ```powershell
-# Start OpenClaw server (it will run on http://localhost:8000)
-openclaw serve
+openclaw onboard --install-daemon
 ```
 
-The API will be available at `http://localhost:8000/api/v1/chat/completions`
+This sets up your workspace, models, and optional channels (WhatsApp, Telegram, etc.).
+
+### Run OpenClaw Gateway
+
+```powershell
+# Start the Gateway (runs on ws://localhost:18789)
+openclaw gateway --port 18789 --verbose
+```
+
+The Gateway is the control plane that the backend will call via `openclaw agent` CLI commands.
 
 ### Verify Installation
 
-OpenClaw comes with built-in models. Check available models:
+OpenClaw supports multiple models (Claude via Anthropic, ChatGPT via OpenAI, etc.). Verify setup:
 
 ```powershell
-openclaw models list
+openclaw doctor
 ```
 
 ---
@@ -69,7 +77,13 @@ npm install
 copy .env.example .env
 ```
 
-Edit `.env` and set your `OPENCLAW_MODEL` (default: `default`). Make sure `OPENCLAW_API_URL` points to your running OpenClaw instance.
+`.env` is mostly auto-configured. The backend will call `openclaw agent` commands to parse messages.
+
+**Note:** The backend requires OpenClaw Gateway to be running. If it's not, you'll see:
+```
+[AI Parser] OpenClaw not found. Install with: npm install -g openclaw@latest
+[AI Parser] Then start gateway: openclaw gateway --port 18789
+```
 
 ---
 
@@ -157,7 +171,7 @@ backend/
 │   ├── auth.js                # GET /auth, GET /auth/callback
 │   └── process.js             # POST /process
 ├── services/
-│   ├── aiParser.js            # OpenAI message parsing
+│   ├── aiParser.js            # OpenClaw Gateway message parsing
 │   ├── calendarService.js     # Google Calendar event creation
 │   └── replyGenerator.js      # WhatsApp reply formatting
 └── utils/

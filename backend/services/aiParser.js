@@ -1,64 +1,62 @@
-const OPENCLAW_API_URL = process.env.OPENCLAW_API_URL || 'http://localhost:8000/api/v1/chat/completions';
-const MODEL = process.env.OPENCLAW_MODEL || 'default';
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
+const OPENCLAW_PORT = process.env.OPENCLAW_PORT || '18789';
 
 /**
- * Calls OpenClaw API to get structured meeting data.
+ * Calls OpenClaw Gateway agent to parse message and extract meeting data.
+ * Requires: openclaw installed globally (npm install -g openclaw@latest)
+ * Requires: openclaw gateway running (openclaw gateway --port 18789)
  * @param {string} message
  * @returns {Promise<object>}
  */
 async function callOpenClaw(message) {
   const today = new Date().toISOString().split('T')[0];
 
-  const systemPrompt = `You are a scheduling assistant. Today's date is ${today}.
-Analyze the WhatsApp message and extract scheduling details if present.
-Respond ONLY with a valid JSON object, no other text.
-Use this exact structure:
+  const systemContext = `Today's date is ${today}. You are a scheduling assistant.
+Analyze this WhatsApp message and extract scheduling details if present.
+Provide a response in this JSON format only (no other text):
 {
   "isSchedulable": boolean,
   "title": "string or empty",
   "date": "YYYY-MM-DD or empty",
-  "time": "HH:mm or empty (default 09:00)",
+  "time": "HH:mm 24-hour or empty (default 09:00)",
   "durationMinutes": number (default 60),
   "description": "string or empty"
 }
 
 Rules:
-- isSchedulable=true only if message mentions meeting, call, sync, interview, or scheduling intent
-- For dates, resolve relative terms like "tomorrow", "next Monday" against today (${today})
+- isSchedulable=true ONLY if message clearly mentions: meeting, call, sync, interview, appointment, conference, or scheduling intent
+- For dates, resolve "tomorrow", "next Monday", etc. relative to today (${today})
 - For time, assume 09:00 if not specified
-- Return valid JSON only.`;
+- Return ONLY valid JSON, no markdown, no extra text`;
 
   try {
-    const response = await fetch(OPENCLAW_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message },
-        ],
-        temperature: 0,
-        stream: false,
-      }),
-    });
+    // Call openclaw agent command via CLI
+    // The agent will use the configured model in openclaw config
+    const { stdout, stderr } = await execFileAsync('openclaw', [
+      'agent',
+      '--message',
+      `${systemContext}\n\nMessage to analyze: "${message}"`,
+      '--json',
+      '--thinking',
+      'minimal',
+    ]);
 
-    if (!response.ok) {
-      throw new Error(`OpenClaw API error: ${response.status} ${response.statusText}`);
+    if (stderr) {
+      console.warn('[AI Parser] OpenClaw stderr:', stderr);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      console.warn('[AI Parser] No content from OpenClaw');
+    if (!stdout) {
+      console.warn('[AI Parser] No output from OpenClaw agent');
       return { isSchedulable: false };
     }
 
-    // Extract JSON from response (handle cases where model adds extra text)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    // Try to extract JSON from the output
+    const jsonMatch = stdout.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.warn('[AI Parser] No JSON found in response:', content);
+      console.warn('[AI Parser] No JSON found in response:', stdout.substring(0, 200));
       return { isSchedulable: false };
     }
 
@@ -66,6 +64,11 @@ Rules:
     return parsed;
   } catch (err) {
     console.error('[AI Parser] OpenClaw call failed:', err.message);
+    // Check if openclaw is installed
+    if (err.code === 'ENOENT') {
+      console.error('[AI Parser] OpenClaw not found. Install with: npm install -g openclaw@latest');
+      console.error('[AI Parser] Then start gateway: openclaw gateway --port 18789');
+    }
     throw err;
   }
 }
