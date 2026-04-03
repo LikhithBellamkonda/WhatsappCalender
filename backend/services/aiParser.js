@@ -1,12 +1,12 @@
-const OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434/api/chat';
-const MODEL = process.env.OLLAMA_MODEL || 'llama2';
+const OPENCLAW_API_URL = process.env.OPENCLAW_API_URL || 'http://localhost:8000/api/v1/chat/completions';
+const MODEL = process.env.OPENCLAW_MODEL || 'default';
 
 /**
- * Calls Ollama API to get structured meeting data.
+ * Calls OpenClaw API to get structured meeting data.
  * @param {string} message
  * @returns {Promise<object>}
  */
-async function callOllama(message) {
+async function callOpenClaw(message) {
   const today = new Date().toISOString().split('T')[0];
 
   const systemPrompt = `You are a scheduling assistant. Today's date is ${today}.
@@ -29,7 +29,7 @@ Rules:
 - Return valid JSON only.`;
 
   try {
-    const response = await fetch(OLLAMA_API_URL, {
+    const response = await fetch(OPENCLAW_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -38,19 +38,20 @@ Rules:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message },
         ],
+        temperature: 0,
         stream: false,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+      throw new Error(`OpenClaw API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const content = data.message?.content;
+    const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
-      console.warn('[AI Parser] No content from Ollama');
+      console.warn('[AI Parser] No content from OpenClaw');
       return { isSchedulable: false };
     }
 
@@ -64,7 +65,7 @@ Rules:
     const parsed = JSON.parse(jsonMatch[0]);
     return parsed;
   } catch (err) {
-    console.error('[AI Parser] Ollama call failed:', err.message);
+    console.error('[AI Parser] OpenClaw call failed:', err.message);
     throw err;
   }
 }
@@ -75,7 +76,7 @@ Rules:
  * @returns {Promise<object>}
  */
 async function parse(message) {
-  const parsed = await callOllama(message);
+  const parsed = await callOpenClaw(message);
   return parsed;
 }
 

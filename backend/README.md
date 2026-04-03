@@ -1,51 +1,45 @@
 # WhatsApp-to-Calendar Backend
 
-Node.js + Express backend that uses **Ollama** (local LLM) to parse WhatsApp messages and creates **Google Calendar** events with Google Meet links.
+Node.js + Express backend that uses **OpenClaw** (local LLM inference) to parse WhatsApp messages and creates **Google Calendar** events with Google Meet links.
 
 ---
 
 ## Prerequisites
 
 - Node.js 18+
-- [Ollama](https://ollama.ai) installed and running locally (`ollama serve`)
+- [OpenClaw](https://github.com/clawai/openclaw) installed and running locally (`openclaw serve`)
 - A Google Cloud project with **Google Calendar API** enabled
 
 ---
 
-## 1. Ollama Setup
+## 1. OpenClaw Setup
 
-### Install Ollama
+### Install OpenClaw
 
-Download from [ollama.ai](https://ollama.ai) for Windows, Mac, or Linux.
-
-### Run Ollama
+Clone and install from [GitHub](https://github.com/clawai/openclaw):
 
 ```powershell
-# Start Ollama server (it will run on http://localhost:11434)
-ollama serve
+git clone https://github.com/clawai/openclaw.git
+cd openclaw
+pip install -r requirements.txt
 ```
 
-### Download a Model
-
-In another terminal:
+### Run OpenClaw
 
 ```powershell
-# Download Mistral (recommended, ~7.3GB)
-ollama pull mistral
-
-# OR other options:
-# ollama pull neural-chat  (smaller, faster)
-# ollama pull llama2        (larger, more powerful)
-# ollama pull openchat      (balanced)
+# Start OpenClaw server (it will run on http://localhost:8000)
+openclaw serve
 ```
 
-Verify installation:
+The API will be available at `http://localhost:8000/api/v1/chat/completions`
+
+### Verify Installation
+
+OpenClaw comes with built-in models. Check available models:
 
 ```powershell
-ollama list
+openclaw models list
 ```
-
-You should see your model listed.
 
 ---
 
@@ -75,7 +69,7 @@ npm install
 copy .env.example .env
 ```
 
-Edit `.env` and set your `OLLAMA_MODEL` (default: `mistral`). Make sure `OLLAMA_API_URL` points to your running Ollama instance.
+Edit `.env` and set your `OPENCLAW_MODEL` (default: `default`). Make sure `OPENCLAW_API_URL` points to your running OpenClaw instance.
 
 ---
 
